@@ -20,7 +20,10 @@ var spritesheet = (image, wid, hei, pad = 4) => {
 var testImage = image("./images/test.png");
 var landscape = image("./images/landscape.png");
 var clouds = image("./images/clouds.png");
+
 var green_buttons = spritesheet(image("./images/green_buttons.png"), 24, 24);
+var green_buttons_shaded = spritesheet(image("./images/green_buttons_shaded.png"), 24, 24);
+var green_button_progress = spritesheet(image("./images/green_progress.png"), 24, 24);
 
 var game = {
 	width: 400,
@@ -176,17 +179,43 @@ function drawAttackButtons() {
 	var y = 652;
 
 	// ctx.drawImage(...green_buttons(0, 0), a + b, 600 + 52 - b, 96, 96);
+	var [
+		button0,
+		button1,
+		button2
+	] = battle.buttonflags;
+
+	var progress = (progress) => {
+		var num = Math.round(progress * 16);
+		var x = num % 6;
+		var y = flr(num / 6);
+		return green_button_progress(x, y);
+	};
+	var buttons = (x, y, button) => button.enabled ? green_buttons(x, y) : green_buttons_shaded(x, y);
 
 	switch (battle.buttons) {
 		default:
-			ctx.drawImage(...green_buttons(0, 0), a, y, 96, 96);
-			ctx.drawImage(...green_buttons(1, 0), a + b, y, 96, 96);
-			ctx.drawImage(...green_buttons(2, 0), a + b + b, y, 96, 96);
+			ctx.drawImage(...buttons(0, 0, button0), a, y, 96, 96);
+			if (button0.progress > 0) {
+				ctx.drawImage(...progress(button0.progress), a, y, 96, 96);
+			}
+
+			a += b;
+			ctx.drawImage(...buttons(1, 0, button1), a, y, 96, 96);
+			if (button1.progress > 0) {
+				ctx.drawImage(...progress(button1.progress), a, y, 96, 96);
+			}
+
+			a += b;
+			ctx.drawImage(...buttons(2, 0, button2), a, y, 96, 96);
+			if (button2.progress > 0) {
+				ctx.drawImage(...progress(button2.progress), a, y, 96, 96);
+			}
 			break;
 		case battleButtons.GREEN_AIR:
-			ctx.drawImage(...green_buttons(2, 1), a, y, 96, 96);
-			ctx.drawImage(...green_buttons(1, 1), a + b, y, 96, 96);
-			ctx.drawImage(...green_buttons(0, 1), a + b + b, y, 96, 96);
+			ctx.drawImage(...buttons(2, 1, button0), a, y, 96, 96);
+			ctx.drawImage(...buttons(1, 1, button1), a + b, y, 96, 96);
+			ctx.drawImage(...buttons(0, 1, button2), a + b + b, y, 96, 96);
 			break;
 	}
 
@@ -210,14 +239,22 @@ function ButtonFlag() {
 	this.press = 0;
 	this.held = 0;
 	this.release = 0;
+
+	this.progress = 0;
+	this.enabled = 0;
+
+	this.setStatus = function (enabled, progress = (-1)) {
+		this.enabled = enabled;
+		this.progress = progress;
+	};
 }
 var battle = {
 	buttons: 0,
 	buttonflags: [new ButtonFlag, new ButtonFlag, new ButtonFlag],
-	ox: 0,
-	my: 0,
+	ox: -128,
+	my: 400,
 	turn: 0,
-	state: 0,
+	state: 2,
 	update() {
 		this.doButtonFlags();
 
@@ -292,7 +329,7 @@ var battle = {
 			} else if (isTouching(button2)) {
 				press(this.buttonflags[2]);
 			} else if (isTouching(fullscreen)) {
-				canvas.requestFullscreen({navigationUI: "show"});
+				canvas.requestFullscreen({ navigationUI: "show" });
 			}
 		}
 		this.swipe = 0;
@@ -485,7 +522,7 @@ class Battler {
 	return = 0;
 	imageSize = 16 * 4;
 	attackTurn() {
-		return (this.side > 0)? 2: 4;
+		return (this.side > 0) ? 2 : 4;
 	}
 	update() {
 		var { imageSize, i, side } = this;
@@ -516,13 +553,20 @@ class Battler {
 		};
 
 		if (i == 1) {
+			if (useButtons) {
+				jump.setStatus(0);
+				punch.setStatus(0);
+				kick.setStatus(0);
+			}
 			var a = 0;
+			var c = 0;
 			var before = n => {
+				c = a;
 				a += n;
 				return this.tick < a;
 			};
 			var exit = () => this.tick + this.tickRate >= a;
-			battle.buttons = battleButtons.GREEN;
+			if(useButtons) battle.buttons = battleButtons.GREEN;
 			var homeBase = (side == 1) ? 0 : (400 - imageSize);
 			var fx = this.x - homeBase;
 
@@ -547,10 +591,16 @@ class Battler {
 						if (battle.state == Attack || fx) {
 							this.stateChange(State.walk);
 						}
-						if (!this.return && useButtons) {
-							if (jump.press) this.stateChange(State.jump);
-							if (punch.press) this.stateChange(State.punch);
-							if (kick.press) this.stateChange(State.kick);
+						if (useButtons) {
+							if (!this.return) {
+								jump.setStatus(1);
+								punch.setStatus(1);
+								kick.setStatus(1);
+
+								if (punch.press) this.stateChange(State.punch);
+								if (kick.press) this.stateChange(State.kick);
+								if (jump.press) this.stateChange(State.jump);
+							}
 						}
 						break;
 					}
@@ -575,10 +625,16 @@ class Battler {
 						var f = flr(((this.tick * walkSpeed) % 8) / 2);
 						this.image = green_images["walk" + f];
 
-						if (!this.return && useButtons) {
-							if (punch.press) this.stateChange(State.punch);
-							if (kick.press) this.stateChange(State.kick);
-							if (jump.press) this.stateChange(State.jump);
+						if (useButtons) {
+							if (!this.return) {
+								jump.setStatus(1);
+								punch.setStatus(1);
+								kick.setStatus(1);
+
+								if (punch.press) this.stateChange(State.punch);
+								if (kick.press) this.stateChange(State.kick);
+								if (jump.press) this.stateChange(State.jump);
+							}
 						}
 						break;
 					}
@@ -593,6 +649,8 @@ class Battler {
 						} else {
 							if (punch.press) this.stateChange(State.punch, 0, 2);
 							if (kick.press) this.stateChange(State.kick, 0, 2);
+							punch.setStatus(1);
+							kick.setStatus(1);
 							this.vy = 0;
 							this.y = 0;
 						}
@@ -601,6 +659,8 @@ class Battler {
 						} else if (before(3)) {
 							this.image = green_images.jump1;
 							this.moveX(-.5 * this.vx);
+							punch.setStatus(1, 1 - (this.tick - c) / 3);
+							kick.setStatus(1, 1 - (this.tick - c) / 3);
 							if (exit()) {
 								this.vy = 12;
 							}
@@ -611,6 +671,9 @@ class Battler {
 							if (jump.press) this.stateChange(State.slam);
 							if (punch.press) this.stateChange(State.airPunch);
 							if (kick.press) this.stateChange(State.airKick);
+							jump.setStatus(1);
+							punch.setStatus(1);
+							kick.setStatus(1);
 						} else if (before(3)) {
 							this.image = green_images.jump3;
 						} else {
@@ -624,34 +687,46 @@ class Battler {
 						let endEarly = () => {
 							if (exit()) {
 								if (!this.hitType) {
-									this.tick = 15;
+									this.tick = 14;
 								} else {
 									this.hitType = 0;
 								}
 							}
 						};
 						let needsPress = () => {
+							punch.setStatus(1, 1 - (this.tick - c)/2);
 							if (punch.press) this.hitType = 1;
 						};
 						let kickTransition = () => {
+							kick.setStatus(1);
 							if (kick.held) {
 								this.image = green_images.kick1;
 								this.stateChange(State.kick, 0, 2);
 							}
 						};
 						let exitKick = () => {
+							kick.setStatus(1);
 							if (exit() && this.hitType) {
 								kickTransition();
 							}
-						}
-						let punchHitbox = () => doAttack(48, 20, 28, 16);
+						};
+						let punchHitbox = () => {
+							jump.setStatus(0);
+							kick.setStatus(0);
+							prepPunch();
+							return doAttack(48, 20, 28, 16);
+						};
+						let prepPunch = () => {
+							punch.setStatus(0, (this.tick - c)/2);
+						};
 
 						defaultHitbox();
 						if (before(2)) {
 							this.moveX(this.vx);
 							this.image = green_images.punch0;
 							this.hitType = 0;
-						} else if (before(3)) {
+							prepPunch();
+						} else if (before(2)) {
 							this.image = green_images.punch1;
 							needsPress();
 						} else if (before(2)) {
@@ -688,6 +763,7 @@ class Battler {
 					{
 						defaultHitbox();
 						let earlyCheck = () => {
+							kick.setStatus(0, 1 - this.tick/6);
 							if (kick.release) this.tick = 8;
 						}
 						if (before(2)) {
@@ -700,6 +776,7 @@ class Battler {
 							earlyCheck();
 						} else if (before(2)) {
 							this.image = green_images.kick2;
+							kick.setStatus(1, (this.tick - 6)/2);
 							if (kick.release) {
 								this.hitType = 1;
 							}
@@ -732,7 +809,7 @@ class Battler {
 						}
 						if (this.y < 0) {
 							battle.buttons = battleButtons.GREEN_AIR;
-							if(this.hasHit) {
+							if (this.hasHit) {
 								this.vx = -5;
 								this.vy = 5;
 								this.stateChange(State.jump, 0, 5);
