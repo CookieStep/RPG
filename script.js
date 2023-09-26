@@ -576,6 +576,7 @@ class Battler {
 					this.stateChange(State.idle);
 					this.x = homeBase;
 					this.vx = 0;
+					this.return = 0;
 				}
 			}
 
@@ -647,10 +648,12 @@ class Battler {
 							this.vy -= gravity;
 							battle.buttons = battleButtons.GREEN_AIR;
 						} else {
-							if (punch.press) this.stateChange(State.punch, 0, 2);
-							if (kick.press) this.stateChange(State.kick, 0, 2);
-							punch.setStatus(1);
-							kick.setStatus(1);
+							if(!this.return) {
+								if (punch.press) this.stateChange(State.punch, 0, 2);
+								if (kick.press) this.stateChange(State.kick, 0, 2);
+								punch.setStatus(1);
+								kick.setStatus(1);
+							}
 							this.vy = 0;
 							this.y = 0;
 						}
@@ -909,6 +912,8 @@ class Battler {
 		this.hasHit = 0;
 	}
 	takeDamage() {
+		this.return = 1;
+		this.goBack();
 		this.stateChange(State.attacked);
 	}
 	onHit() {
