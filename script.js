@@ -111,6 +111,12 @@ function drawBackground() {
 	ctx.translate(-battle.ox, 0);
 }
 function drawBattlers(battlers) {
+	var array = [];
+	for(let i = 0, l = battlers.length; i < l; i++) {
+		array.unshift(battlers[i]);
+	}
+	battlers = array;
+
 	ctx.translate(battle.ox, 0);
 	for (let battler of battlers) {
 		battler.draw();
@@ -294,11 +300,11 @@ var battle = {
 
 					if (AB) {
 						A.data.onHit();
-						B.data.takeDamage();
+						B.data.takeDamage(A.data.atkType);
 					}
 					if (BA) {
 						B.data.onHit();
-						A.data.takeDamage();
+						A.data.takeDamage(A.data.atkType);
 					}
 				}
 			}
@@ -332,6 +338,13 @@ var battle = {
 				canvas.requestFullscreen({ navigationUI: "show" });
 			}
 		}
+		if (keys.has("KeyA")) {
+			press(this.buttonflags[0]);
+		} else if (keys.has("KeyS")) {
+			press(this.buttonflags[1]);
+		} else if (keys.has("KeyD")) {
+			press(this.buttonflags[2]);
+		}
 		this.swipe = 0;
 		for (let [id, touch] of touches) {
 			if (!touch.dead || touch.used) continue;
@@ -356,6 +369,12 @@ var battle = {
 					touch.used = 1;
 				}
 			touch.used = 1;
+		}
+		if(keys.use("ArrowRight")) {
+			this.swipe = +1;
+		}
+		if(keys.use("ArrowLeft")) {
+			this.swipe = -1;
 		}
 		for (let flag of this.buttonflags) {
 			if (flag.held && !flag.down) {
@@ -397,7 +416,7 @@ function main() {
 	renderEnemyView(My);
 	drawBackground();
 
-	drawBattlers([...enemies, ...allies]);
+	drawBattlers([...allies, ...enemies]);
 
 	drawEnemyView(My);
 	// drawHitboxes();
@@ -494,6 +513,11 @@ var State = {
 	airKick: 7,
 	attacked: 8
 };
+var atkType = {
+	high: 1,
+	med: 2,
+	low: 3
+}
 class Battler {
 	constructor(i = 0, x = 0, y = 0) {
 		this.i = i;
@@ -524,6 +548,7 @@ class Battler {
 	attackTurn() {
 		return (this.side > 0) ? 2 : 4;
 	}
+	progress = -1;
 	update() {
 		var { imageSize, i, side } = this;
 		var [jump, punch, kick] = battle.buttonflags;
@@ -536,6 +561,9 @@ class Battler {
 		if (idleTimer < 300) this.image = green_images.idle0;
 		else this.image = green_images.idle1;
 		this.flip = false;
+
+		this.progress = -1;
+		this.prgenb = 0;
 
 		//add hitbox flipping
 		var Attack = this.attackTurn();
@@ -579,6 +607,7 @@ class Battler {
 					this.return = 0;
 				}
 			}
+			this.atkType = atkType.high;
 
 			this.tick += this.tickRate;
 			var gravity = 0.5;
@@ -687,6 +716,7 @@ class Battler {
 					}
 				case State.punch:
 					{
+						this.atkType =  atkType.med;
 						let endEarly = () => {
 							if (exit()) {
 								if (!this.hitType) {
@@ -726,7 +756,7 @@ class Battler {
 
 						defaultHitbox();
 						if (before(2)) {
-							this.moveX(this.vx);
+							this.moveX(this.vx/2);
 							this.image = green_images.punch0;
 							this.hitType = 0;
 							prepPunch();
@@ -761,17 +791,20 @@ class Battler {
 							this.stateChange(State.idle);
 							this.goBack();
 						}
+						this.progress = punch.progress;
+						this.prgenb = punch.enabled;
 						break;
 					}
 				case State.kick:
 					{
 						defaultHitbox();
+						this.atkType = atkType.low;
 						let earlyCheck = () => {
 							kick.setStatus(0, 1 - this.tick/6);
 							if (kick.release) this.tick = 8;
 						}
 						if (before(2)) {
-							this.moveX(this.vx);
+							this.moveX(this.vx/2);
 							this.image = green_images.kick0;
 							this.hitType = 0;
 							earlyCheck();
@@ -786,21 +819,27 @@ class Battler {
 							}
 						} else if (before(2)) {
 							this.image = green_images.kick3;
+							kick.setStatus(this.hitType, 1);
 						} else if (before(2)) {
 							this.image = this.hitType ? green_images.kick4 : green_images.kick5;
+							kick.setStatus(this.hitType, 1);
 							doAttack(48, 28, 24, 20);
 						} else if (before(2)) {
 							this.image = green_images.kick6;
 						} else {
+							this.hitType = 0;
 							this.image = green_images.kick6;
 							this.stateChange(State.idle);
 							this.goBack();
 						}
+						this.progress = kick.progress;
+						this.prgenb = kick.enabled;
 						break;
 					}
 				case State.slam:
 					{
 						defaultHitbox();
+						this.atkType = atkType.high;
 						this.y -= this.vy;
 
 						if (before(2)) {
@@ -831,13 +870,6 @@ class Battler {
 						this.y -= this.vy;
 						this.moveX(this.vx);
 
-						if (this.y < 0) {
-							this.vy -= gravity;
-							battle.buttons = battleButtons.GREEN_AIR;
-						} else {
-							this.stateChange(State.jump, 0, 5);
-							this.goBack();
-						}
 						if (before(2)) {
 							this.image = green_images.aPunch0;
 						} else if (before(2)) {
@@ -848,6 +880,19 @@ class Battler {
 						} else {
 							this.image = green_images.slam2;
 						}
+						if (this.y < 0) {
+							this.vy -= gravity;
+							battle.buttons = battleButtons.GREEN_AIR;
+							if (this.hasHit) {
+								this.vx = -5;
+								this.vy = 5;
+								this.stateChange(State.jump, 0, 5);
+								this.goBack();
+							}
+						} else {
+							this.stateChange(State.jump, 0, 5);
+							this.goBack();
+						}
 						break;
 					}
 				case State.airKick:
@@ -856,13 +901,6 @@ class Battler {
 						this.y -= this.vy;
 						this.moveX(this.vx);
 
-						if (this.y < 0) {
-							this.vy -= gravity;
-							battle.buttons = battleButtons.GREEN_AIR;
-						} else {
-							this.stateChange(State.jump, 0, 5);
-							this.goBack();
-						}
 						if (before(2)) {
 							this.image = green_images.aKick0;
 						} else if (before(2)) {
@@ -870,6 +908,19 @@ class Battler {
 							doAttack(48, 32, 20, 24);
 						} else {
 							this.image = green_images.aKick2;
+						}
+						if (this.y < 0) {
+							this.vy -= gravity;
+							battle.buttons = battleButtons.GREEN_AIR;
+							if (this.hasHit) {
+								this.vx = -5;
+								this.vy = 5;
+								this.stateChange(State.jump, 0, 5);
+								this.goBack();
+							}
+						} else {
+							this.stateChange(State.jump, 0, 5);
+							this.goBack();
 						}
 						break;
 					}
@@ -889,7 +940,7 @@ class Battler {
 							this.y = 0;
 							this.vy = 0;
 						}
-						this.moveX(-1);
+						this.moveX(-1.5);
 						this.y -= this.vy;
 						if (air) {
 							if (before(2)) {
@@ -899,7 +950,13 @@ class Battler {
 							}
 						} else {
 							if (before(2)) {
-								this.image = green_images.attacked1;
+								if(this.phase == atkType.high) {
+									this.image = green_images.attacked3;
+								}else if(this.phase == atkType.low) {
+									this.image = green_images.attacked2;
+								}else{
+									this.image = green_images.attacked1;
+								}
 							} else {
 								this.stateChange(State.idle);
 								this.goBack();
@@ -911,10 +968,10 @@ class Battler {
 		}
 		this.hasHit = 0;
 	}
-	takeDamage() {
+	takeDamage(type) {
 		this.return = 1;
 		this.goBack();
-		this.stateChange(State.attacked);
+		this.stateChange(State.attacked, type);
 	}
 	onHit() {
 		this.hasHit = 1;
@@ -938,6 +995,7 @@ class Battler {
 	}
 	flip = false;
 	hitType = 0;
+	atkType = 0;
 	state = 0;
 	phase = 0;
 	tick = 0;
@@ -972,7 +1030,26 @@ class Battler {
 			ctx.translate(-x, 0);
 		} else {
 			ctx.drawImage(testImage, x, y, imageSize, imageSize);
+			if(this.progress >= 0) {
+				if(!this.prgenb) {
+					var col = '#3d6e70';
+					var col2 = '#3ca370';
+					var out = black;
+				}else{
+					var out = '#3d6e70';
+					var col2 = '#8fde5d';
+					var col = "#3ca370";
+				}
+				var prg = Math.round(16 * this.progress) * 4;
+				ctx.strokeStyle = out;
+				ctx.fillStyle = col;
+				ctx.strokeRect(x, y - 16, 64, 8);
+				ctx.fillRect(x, y - 16, 64, 8);
+				ctx.fillStyle = col2;
+				ctx.fillRect(x, y - 16, prg, 8);
+			}
 		}
+		ctx.strokeStyle = black;
 	}
 }
 
