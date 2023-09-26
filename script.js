@@ -214,10 +214,10 @@ function ButtonFlag() {
 var battle = {
 	buttons: 0,
 	buttonflags: [new ButtonFlag, new ButtonFlag, new ButtonFlag],
-	ox: -128,
-	my: 400,
+	ox: 0,
+	my: 0,
 	turn: 0,
-	state: 2,
+	state: 0,
 	update() {
 		this.doButtonFlags();
 
