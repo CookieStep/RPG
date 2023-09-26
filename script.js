@@ -697,15 +697,16 @@ class Battler {
 							punch.setStatus(1, 1 - (this.tick - c)/2);
 							if (punch.press) this.hitType = 1;
 						};
+						var kicktime = 1 - (this.tick - 4)/8;
 						let kickTransition = () => {
-							kick.setStatus(1);
+							kick.setStatus(1, kicktime);
 							if (kick.held) {
 								this.image = green_images.kick1;
 								this.stateChange(State.kick, 0, 2);
 							}
 						};
 						let exitKick = () => {
-							if(this.hitType) kick.setStatus(1);
+							if(this.hitType) kick.setStatus(1, kicktime);
 							if (exit() && this.hitType) {
 								kickTransition();
 							}
