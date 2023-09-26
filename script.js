@@ -705,7 +705,7 @@ class Battler {
 							}
 						};
 						let exitKick = () => {
-							kick.setStatus(1);
+							if(this.hitType) kick.setStatus(1);
 							if (exit() && this.hitType) {
 								kickTransition();
 							}
