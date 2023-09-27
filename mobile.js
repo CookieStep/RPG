@@ -85,6 +85,7 @@ function setupDesktop() {
         ontouchcancel({ changedTouches: [e] });
     };
 }
+
 ontouchstart = e => [...e.changedTouches].forEach(e => {
     var touch = touches.get(e.identifier) || new Pointer(e.identifier);
     touches.set(touch.id, touch);
@@ -93,15 +94,15 @@ ontouchstart = e => [...e.changedTouches].forEach(e => {
 });
 ontouchmove = e => [...e.changedTouches].forEach(e => {
     var touch = touches.get(e.identifier);
-    touch.move(e);
+    touch?.move(e);
 });
 ontouchend = e => [...e.changedTouches].forEach(e => {
     var touch = touches.get(e.identifier);
-    touch.end(e);
+    touch?.end(e);
     // canvas.requestFullscreen({navigationUI: "show"});
 });
 ontouchcancel = e => [...e.changedTouches].forEach(e => {
     var touch = touches.get(e.identifier);
-    touch.cancel(e);
+    touch?.cancel(e);
 });
 oncontextmenu = e => e.preventDefault();
